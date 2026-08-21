@@ -1,4 +1,15 @@
-
+// ==UserScript==
+// @name         Meta Ads — Conversor USD ↔ BRL
+// @namespace    meta-ads-currency
+// @version      7.3.0
+// @description  Conversor de moedas para o Meta Ads Manager
+// @author       João
+// @match        https://www.facebook.com/*
+// @match        https://business.facebook.com/*
+// @match        https://adsmanager.facebook.com/*
+// @grant        none
+// @run-at       document-idle
+// ==/UserScript==
 
 (function () {
 
