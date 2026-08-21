@@ -1,15 +1,21 @@
 // ==UserScript==
 // @name         Meta Ads — Conversor USD ↔ BRL
 // @namespace    meta-ads-currency
-// @version      8.2.1
+// @version      8.3.0
 // @description  Conversor robusto de moedas para o Meta Ads Manager
 // @author       João
 // @match        https://www.facebook.com/*
 // @match        https://business.facebook.com/*
 // @match        https://adsmanager.facebook.com/*
-// @exclude      https://www.facebook.com/ads/library*
-// @exclude      https://business.facebook.com/ads/library*
-// @exclude      https://adsmanager.facebook.com/ads/library*
+// @exclude      https://www.facebook.com/ads/library
+// @exclude      https://www.facebook.com/ads/library/
+// @exclude      https://www.facebook.com/ads/library/*
+// @exclude      https://business.facebook.com/ads/library
+// @exclude      https://business.facebook.com/ads/library/
+// @exclude      https://business.facebook.com/ads/library/*
+// @exclude      https://adsmanager.facebook.com/ads/library
+// @exclude      https://adsmanager.facebook.com/ads/library/
+// @exclude      https://adsmanager.facebook.com/ads/library/*
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
@@ -18,21 +24,20 @@
 
     'use strict';
 
-    // ============================================================
-    // BLOQUEIO — ADS LIBRARY
+       // ============================================================
+    // BLOQUEIO ABSOLUTO — ADS LIBRARY
     // ============================================================
 
-    /*
-     * O script NÃO deve funcionar na Biblioteca de Anúncios.
-     *
-     * Exemplos bloqueados:
-     *
-     * https://www.facebook.com/ads/library/
-     * https://www.facebook.com/ads/library/?...
-     *
-     * O bloqueio é feito antes de qualquer criação de elemento,
-     * observer, listener ou alteração da página.
-     */
+    const currentPath =
+        String(location.pathname || '').toLowerCase();
+
+    const isAdsLibrary =
+        currentPath === '/ads/library' ||
+        currentPath.startsWith('/ads/library/');
+
+    if (isAdsLibrary) {
+        return;
+    }
 
     const pathname =
         String(location.pathname || '').toLowerCase();
