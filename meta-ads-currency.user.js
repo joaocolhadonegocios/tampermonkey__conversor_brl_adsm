@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Meta Ads — Conversor USD ↔ BRL
 // @namespace    meta-ads-currency
-// @version      8.3.0
-// @description  Conversor robusto de moedas para o Meta Ads Manager
+// @version      8.4.0
+// @description  Conversor robusto USD ↔ BRL para o Meta Ads Manager
 // @author       João
 // @match        https://www.facebook.com/*
 // @match        https://business.facebook.com/*
@@ -24,33 +24,28 @@
 
     'use strict';
 
-       // ============================================================
+    // ============================================================
     // BLOQUEIO ABSOLUTO — ADS LIBRARY
     // ============================================================
 
-    const currentPath =
-        String(location.pathname || '').toLowerCase();
+    function isAdsLibrary() {
 
-    const isAdsLibrary =
-        currentPath === '/ads/library' ||
-        currentPath.startsWith('/ads/library/');
+        const path =
+            String(location.pathname || '').toLowerCase();
 
-    if (isAdsLibrary) {
-        return;
+        return (
+            path === '/ads/library' ||
+            path.startsWith('/ads/library/')
+        );
+
     }
 
-    const pathname =
-        String(location.pathname || '').toLowerCase();
-
-    if (
-        pathname === '/ads/library' ||
-        pathname.startsWith('/ads/library/')
-    ) {
+    if (isAdsLibrary()) {
         return;
     }
 
     console.log(
-        '🚀 Meta Ads Currency Converter V8.2 iniciado'
+        '🚀 Meta Ads Currency Converter V8.4 iniciado'
     );
 
     // ============================================================
@@ -58,24 +53,55 @@
     // ============================================================
 
     const STORAGE = {
-        rate: 'meta_currency_rate',
-        autoStart: 'meta_currency_autostart',
-        minimized: 'meta_currency_minimized',
-        position: 'meta_currency_position'
+
+        rate:
+            'meta_currency_rate',
+
+        direction:
+            'meta_currency_direction',
+
+        autoStart:
+            'meta_currency_autostart',
+
+        minimized:
+            'meta_currency_minimized',
+
+        position:
+            'meta_currency_position'
+
     };
 
     const DEFAULT_RATE = 5.40;
 
+    const DEFAULT_DIRECTION = 'USD_TO_BRL';
+
     const ATTR = {
-        converted: 'data-meta-currency-converted',
-        original: 'data-meta-currency-original',
-        value: 'data-meta-currency-value',
-        originalTitle: 'data-meta-currency-original-title',
-        hadTitle: 'data-meta-currency-had-title'
+
+        converted:
+            'data-meta-currency-converted',
+
+        original:
+            'data-meta-currency-original',
+
+        value:
+            'data-meta-currency-value',
+
+        currency:
+            'data-meta-currency-currency',
+
+        originalTitle:
+            'data-meta-currency-original-title',
+
+        hadTitle:
+            'data-meta-currency-had-title'
+
     };
 
-    const PANEL_ID = 'meta-currency-v82-panel';
-    const MINI_ID = 'meta-currency-v82-mini';
+    const PANEL_ID =
+        'meta-currency-v84-panel';
+
+    const MINI_ID =
+        'meta-currency-v84-mini';
 
     // ============================================================
     // ESTADO
@@ -83,17 +109,40 @@
 
     let exchangeRate =
         parseFloat(
-            localStorage.getItem(STORAGE.rate)
+            localStorage.getItem(
+                STORAGE.rate
+            )
         ) ||
         DEFAULT_RATE;
 
-    let autoStart =
-        localStorage.getItem(STORAGE.autoStart) === 'true';
+    let direction =
+        localStorage.getItem(
+            STORAGE.direction
+        ) ||
+        DEFAULT_DIRECTION;
 
-    let enabled = autoStart;
+    if (
+        direction !== 'USD_TO_BRL' &&
+        direction !== 'BRL_TO_USD'
+    ) {
+
+        direction =
+            DEFAULT_DIRECTION;
+
+    }
+
+    let autoStart =
+        localStorage.getItem(
+            STORAGE.autoStart
+        ) === 'true';
+
+    let enabled =
+        autoStart;
 
     let minimized =
-        localStorage.getItem(STORAGE.minimized) === 'true';
+        localStorage.getItem(
+            STORAGE.minimized
+        ) === 'true';
 
     let position = null;
 
@@ -101,7 +150,9 @@
 
         position =
             JSON.parse(
-                localStorage.getItem(STORAGE.position)
+                localStorage.getItem(
+                    STORAGE.position
+                )
             );
 
     } catch (e) {
@@ -117,8 +168,10 @@
     ) {
 
         position = {
+
             top: 90,
             right: 20
+
         };
 
     }
@@ -128,21 +181,21 @@
     // ============================================================
 
     let processing = false;
+
     let scanTimer = null;
+
     let queueTimer = null;
+
     let scrollTimer = null;
+
     let routeTimer = null;
+
     let resizeTimer = null;
+
     let routeInterval = null;
 
-    const processingQueue = new Set();
-
-    /*
-     * Elementos modificados pelo próprio script.
-     *
-     * Evita que o MutationObserver interprete nossas próprias
-     * alterações como novas alterações do Meta.
-     */
+    const processingQueue =
+        new Set();
 
     const internallyModified =
         new WeakSet();
@@ -157,15 +210,23 @@
     style.textContent = `
 
         #${PANEL_ID} {
+
             position: fixed;
-            width: 270px;
+
+            width: 290px;
+
             z-index: 2147483647;
+
             background: #fff;
+
             border: 1px solid rgba(0,0,0,.10);
+
             border-radius: 15px;
+
             box-shadow:
                 0 12px 35px rgba(0,0,0,.20),
                 0 3px 10px rgba(0,0,0,.08);
+
             font-family:
                 -apple-system,
                 BlinkMacSystemFont,
@@ -173,250 +234,474 @@
                 Roboto,
                 Arial,
                 sans-serif;
+
             color: #1c1e21;
+
             overflow: hidden;
+
             user-select: none;
+
         }
 
         #${PANEL_ID} * {
+
             box-sizing: border-box;
+
         }
 
-        #meta-currency-v82-header {
+        #meta-currency-v84-header {
+
             height: 50px;
+
             display: flex;
+
             align-items: center;
+
             justify-content: space-between;
+
             padding: 0 10px 0 14px;
+
             background:
                 linear-gradient(
                     135deg,
                     #1877f2,
                     #0866ff
                 );
+
             color: #fff;
+
             cursor: move;
+
         }
 
-        #meta-currency-v82-title {
+        #meta-currency-v84-title {
+
             display: flex;
+
             align-items: center;
+
             gap: 9px;
+
             font-size: 15px;
+
             font-weight: 700;
+
         }
 
-        #meta-currency-v82-icon {
+        #meta-currency-v84-icon {
+
             width: 29px;
+
             height: 29px;
+
             border-radius: 8px;
+
             display: flex;
+
             align-items: center;
+
             justify-content: center;
-            background: rgba(255,255,255,.18);
+
+            background:
+                rgba(255,255,255,.18);
+
             font-size: 16px;
+
             font-weight: 800;
+
         }
 
-        #meta-currency-v82-actions {
+        #meta-currency-v84-actions {
+
             display: flex;
+
             align-items: center;
+
             gap: 3px;
+
         }
 
-        .meta-currency-v82-action {
+        .meta-currency-v84-action {
+
             width: 29px;
+
             height: 29px;
+
             border: 0;
+
             border-radius: 7px;
+
             background: transparent;
+
             color: #fff;
+
             cursor: pointer;
+
             font-size: 19px;
+
             display: flex;
+
             align-items: center;
+
             justify-content: center;
+
         }
 
-        .meta-currency-v82-action:hover {
-            background: rgba(255,255,255,.18);
+        .meta-currency-v84-action:hover {
+
+            background:
+                rgba(255,255,255,.18);
+
         }
 
-        #meta-currency-v82-body {
+        #meta-currency-v84-body {
+
             padding: 16px;
+
         }
 
-        #meta-currency-v82-main {
+        #meta-currency-v84-main {
+
             margin-bottom: 15px;
+
         }
 
-        #meta-currency-v82-mode {
+        #meta-currency-v84-mode {
+
             font-size: 15px;
+
             font-weight: 750;
+
             line-height: 1.3;
+
         }
 
-        #meta-currency-v82-status {
+        #meta-currency-v84-status {
+
             display: inline-flex;
+
             align-items: center;
+
             gap: 6px;
+
             margin-top: 5px;
+
             font-size: 12px;
+
             font-weight: 650;
+
             color: #65676b;
+
         }
 
-        #meta-currency-v82-dot {
+        #meta-currency-v84-dot {
+
             width: 8px;
+
             height: 8px;
+
             border-radius: 50%;
+
             background: #31a24c;
+
             box-shadow:
                 0 0 0 3px rgba(49,162,76,.12);
+
         }
 
-        #meta-currency-v82-dot.off {
+        #meta-currency-v84-dot.off {
+
             background: #999;
+
             box-shadow:
                 0 0 0 3px rgba(153,153,153,.12);
+
         }
 
-        #meta-currency-v82-rate-label {
+        #meta-currency-v84-direction-label {
+
             display: block;
+
             font-size: 12px;
+
             font-weight: 600;
+
             color: #65676b;
+
             margin-bottom: 6px;
+
         }
 
-        #meta-currency-v82-rate-row {
-            display: flex;
-            gap: 7px;
-        }
+        #meta-currency-v84-direction {
 
-        #meta-currency-v82-rate {
-            flex: 1;
-            height: 38px;
+            width: 100%;
+
+            height: 40px;
+
             border: 1px solid #ccd0d5;
+
             border-radius: 8px;
+
             padding: 0 10px;
-            font-size: 15px;
+
+            font-size: 14px;
+
+            font-weight: 600;
+
             outline: none;
+
             color: #1c1e21;
+
+            background: #fff;
+
+            cursor: pointer;
+
+            margin-bottom: 13px;
+
         }
 
-        #meta-currency-v82-rate:focus {
+        #meta-currency-v84-direction:focus {
+
             border-color: #1877f2;
+
             box-shadow:
                 0 0 0 2px rgba(24,119,242,.14);
+
         }
 
-        #meta-currency-v82-apply {
-            height: 38px;
-            padding: 0 13px;
-            border: 0;
-            border-radius: 8px;
-            background: #1877f2;
-            color: #fff;
-            font-size: 13px;
-            font-weight: 700;
-            cursor: pointer;
-        }
+        #meta-currency-v84-rate-label {
 
-        #meta-currency-v82-apply:hover {
-            background: #166fe5;
-        }
-
-        #meta-currency-v82-toggle {
-            width: 100%;
-            height: 40px;
-            margin-top: 13px;
-            border: 0;
-            border-radius: 9px;
-            color: #fff;
-            font-size: 14px;
-            font-weight: 750;
-            cursor: pointer;
-        }
-
-        #meta-currency-v82-toggle.active {
-            background: #31a24c;
-        }
-
-        #meta-currency-v82-toggle.inactive {
-            background: #65676b;
-        }
-
-        #meta-currency-v82-auto {
-            display: flex;
-            align-items: center;
-            gap: 9px;
-            margin-top: 14px;
-            padding: 10px;
-            border-radius: 9px;
-            background: #f5f6f7;
-            cursor: pointer;
-        }
-
-        #meta-currency-v82-auto input {
-            width: 16px;
-            height: 16px;
-            margin: 0;
-            cursor: pointer;
-            accent-color: #1877f2;
-        }
-
-        #meta-currency-v82-auto-text {
-            font-size: 13px;
-            font-weight: 600;
-            color: #1c1e21;
-            line-height: 1.25;
-        }
-
-        #meta-currency-v82-auto-description {
             display: block;
-            margin-top: 2px;
-            font-size: 10px;
-            font-weight: 400;
+
+            font-size: 12px;
+
+            font-weight: 600;
+
             color: #65676b;
+
+            margin-bottom: 6px;
+
         }
 
-        #meta-currency-v82-info {
-            margin-top: 12px;
+        #meta-currency-v84-rate-row {
+
+            display: flex;
+
+            gap: 7px;
+
+        }
+
+        #meta-currency-v84-rate {
+
+            flex: 1;
+
+            height: 38px;
+
+            border: 1px solid #ccd0d5;
+
+            border-radius: 8px;
+
+            padding: 0 10px;
+
+            font-size: 15px;
+
+            outline: none;
+
+            color: #1c1e21;
+
+        }
+
+        #meta-currency-v84-rate:focus {
+
+            border-color: #1877f2;
+
+            box-shadow:
+                0 0 0 2px rgba(24,119,242,.14);
+
+        }
+
+        #meta-currency-v84-apply {
+
+            height: 38px;
+
+            padding: 0 13px;
+
+            border: 0;
+
+            border-radius: 8px;
+
+            background: #1877f2;
+
+            color: #fff;
+
+            font-size: 13px;
+
+            font-weight: 700;
+
+            cursor: pointer;
+
+        }
+
+        #meta-currency-v84-apply:hover {
+
+            background: #166fe5;
+
+        }
+
+        #meta-currency-v84-toggle {
+
+            width: 100%;
+
+            height: 40px;
+
+            margin-top: 13px;
+
+            border: 0;
+
+            border-radius: 9px;
+
+            color: #fff;
+
+            font-size: 14px;
+
+            font-weight: 750;
+
+            cursor: pointer;
+
+        }
+
+        #meta-currency-v84-toggle.active {
+
+            background: #31a24c;
+
+        }
+
+        #meta-currency-v84-toggle.inactive {
+
+            background: #65676b;
+
+        }
+
+        #meta-currency-v84-auto {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 9px;
+
+            margin-top: 14px;
+
+            padding: 10px;
+
+            border-radius: 9px;
+
+            background: #f5f6f7;
+
+            cursor: pointer;
+
+        }
+
+        #meta-currency-v84-auto input {
+
+            width: 16px;
+
+            height: 16px;
+
+            margin: 0;
+
+            cursor: pointer;
+
+            accent-color: #1877f2;
+
+        }
+
+        #meta-currency-v84-auto-text {
+
+            font-size: 13px;
+
+            font-weight: 600;
+
+            color: #1c1e21;
+
+            line-height: 1.25;
+
+        }
+
+        #meta-currency-v84-auto-description {
+
+            display: block;
+
+            margin-top: 2px;
+
             font-size: 10px;
+
+            font-weight: 400;
+
+            color: #65676b;
+
+        }
+
+        #meta-currency-v84-info {
+
+            margin-top: 12px;
+
+            font-size: 10px;
+
             line-height: 1.45;
+
             color: #8a8d91;
+
             text-align: center;
+
         }
 
         #${MINI_ID} {
+
             position: fixed;
+
             width: 52px;
+
             height: 52px;
+
             z-index: 2147483647;
+
             border: 0;
+
             border-radius: 50%;
+
             background:
                 linear-gradient(
                     135deg,
                     #1877f2,
                     #0866ff
                 );
+
             color: #fff;
+
             box-shadow:
                 0 6px 20px rgba(0,0,0,.25);
+
             cursor: pointer;
+
             font-size: 21px;
+
             font-weight: 800;
+
             display: flex;
+
             align-items: center;
+
             justify-content: center;
+
         }
 
     `;
 
     if (document.head) {
+
         document.head.appendChild(style);
+
     }
 
     // ============================================================
@@ -439,8 +724,11 @@
     const BRL_REGEX =
         /^R\$\s*[\d.]+(?:,\d{1,2})?$/;
 
+    const USD_REGEX =
+        /^US\$\s*[\d,]+(?:\.\d{1,2})?$/;
+
     // ============================================================
-    // PARSE
+    // PARSE BRL
     // ============================================================
 
     function parseBRL(text) {
@@ -448,8 +736,12 @@
         const normalized =
             normalizeText(text);
 
-        if (!BRL_REGEX.test(normalized)) {
+        if (
+            !BRL_REGEX.test(normalized)
+        ) {
+
             return null;
+
         }
 
         const match =
@@ -475,8 +767,60 @@
     }
 
     // ============================================================
+    // PARSE USD
+    // ============================================================
+
+    function parseUSD(text) {
+
+        const normalized =
+            normalizeText(text);
+
+        if (
+            !USD_REGEX.test(normalized)
+        ) {
+
+            return null;
+
+        }
+
+        const match =
+            normalized.match(
+                /^US\$\s*([\d,]+(?:\.\d{1,2})?)$/
+            );
+
+        if (!match) {
+            return null;
+        }
+
+        const number =
+            parseFloat(
+                match[1].replace(/,/g, '')
+            );
+
+        return Number.isFinite(number)
+            ? number
+            : null;
+
+    }
+
+    // ============================================================
     // FORMATAÇÃO
     // ============================================================
+
+    function formatBRL(value) {
+
+        return (
+            'R$ ' +
+            value.toLocaleString(
+                'pt-BR',
+                {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                }
+            )
+        );
+
+    }
 
     function formatUSD(value) {
 
@@ -499,8 +843,13 @@
 
     function isOwnElement(element) {
 
-        if (!element || element.nodeType !== 1) {
+        if (
+            !element ||
+            element.nodeType !== 1
+        ) {
+
             return false;
+
         }
 
         return !!element.closest(
@@ -515,8 +864,13 @@
 
     function isEditableElement(element) {
 
-        if (!element || element.nodeType !== 1) {
+        if (
+            !element ||
+            element.nodeType !== 1
+        ) {
+
             return false;
+
         }
 
         const tag =
@@ -529,7 +883,9 @@
             tag === 'option' ||
             tag === 'button'
         ) {
+
             return true;
+
         }
 
         if (element.isContentEditable) {
@@ -537,9 +893,13 @@
         }
 
         if (
-            element.getAttribute('contenteditable') === 'true'
+            element.getAttribute(
+                'contenteditable'
+            ) === 'true'
         ) {
+
             return true;
+
         }
 
         return false;
@@ -553,22 +913,36 @@
     function getSurface(element) {
 
         let current = element;
+
         let depth = 0;
 
-        while (current && depth < 15) {
+        while (
+            current &&
+            depth < 15
+        ) {
 
-            if (current.nodeType !== 1) {
+            if (
+                current.nodeType !== 1
+            ) {
+
                 break;
+
             }
 
             const surface =
-                current.getAttribute('data-surface');
+                current.getAttribute(
+                    'data-surface'
+                );
 
             if (surface) {
+
                 return surface.toLowerCase();
+
             }
 
-            current = current.parentElement;
+            current =
+                current.parentElement;
+
             depth++;
 
         }
@@ -590,22 +964,32 @@
             surface.includes('roas') ||
             surface.includes('purchase_roas')
         ) {
+
             return true;
+
         }
 
         let current = element;
+
         let depth = 0;
 
-        while (current && depth < 8) {
+        while (
+            current &&
+            depth < 8
+        ) {
 
             const aria =
                 normalizeText(
-                    current.getAttribute?.('aria-label')
+                    current.getAttribute?.(
+                        'aria-label'
+                    )
                 ).toLowerCase();
 
             const title =
                 normalizeText(
-                    current.getAttribute?.('title')
+                    current.getAttribute?.(
+                        'title'
+                    )
                 ).toLowerCase();
 
             const text =
@@ -617,14 +1001,18 @@
                 aria.includes('roas') ||
                 title.includes('roas')
             ) {
+
                 return true;
+
             }
 
             if (
                 text === 'roas' ||
                 text.startsWith('roas ')
             ) {
+
                 return true;
+
             }
 
             current =
@@ -673,15 +1061,21 @@
                 surface.includes('amount') ||
                 surface.includes('cost')
             ) {
+
                 return true;
+
             }
 
         }
 
         let current = element;
+
         let depth = 0;
 
-        while (current && depth < 15) {
+        while (
+            current &&
+            depth < 15
+        ) {
 
             const tag =
                 current.tagName
@@ -702,7 +1096,9 @@
                 role === 'cell' ||
                 role === 'columnheader'
             ) {
+
                 return true;
+
             }
 
             current =
@@ -712,19 +1108,12 @@
 
         }
 
-        /*
-         * Fallback final.
-         *
-         * O script só chega aqui depois de validar que
-         * o conteúdo inteiro do elemento é um valor BRL.
-         */
-
         return true;
 
     }
 
     // ============================================================
-    // ENCONTRAR ELEMENTO MONETÁRIO MAIS ADEQUADO
+    // ENCONTRAR ELEMENTO MAIS ADEQUADO
     // ============================================================
 
     function getBestElementForTextNode(textNode) {
@@ -733,21 +1122,30 @@
             !textNode ||
             !textNode.parentElement
         ) {
+
             return null;
+
         }
 
         let element =
             textNode.parentElement;
 
-        let best = element;
+        let best =
+            element;
 
-        for (let i = 0; i < 5 && element; i++) {
+        for (
+            let i = 0;
+            i < 5 && element;
+            i++
+        ) {
 
             if (
                 isOwnElement(element) ||
                 isEditableElement(element)
             ) {
+
                 return null;
+
             }
 
             const text =
@@ -756,9 +1154,13 @@
                 );
 
             if (
-                BRL_REGEX.test(text)
+                BRL_REGEX.test(text) ||
+                USD_REGEX.test(text)
             ) {
-                best = element;
+
+                best =
+                    element;
+
             }
 
             element =
@@ -771,7 +1173,7 @@
     }
 
     // ============================================================
-    // BUSCAR TEXT NODES
+    // TEXT NODES
     // ============================================================
 
     function getTextNodeCandidates(root) {
@@ -787,10 +1189,16 @@
                 root,
                 NodeFilter.SHOW_TEXT,
                 {
+
                     acceptNode(node) {
 
-                        if (!node || !node.parentElement) {
+                        if (
+                            !node ||
+                            !node.parentElement
+                        ) {
+
                             return NodeFilter.FILTER_REJECT;
+
                         }
 
                         const parent =
@@ -800,7 +1208,9 @@
                             isOwnElement(parent) ||
                             isEditableElement(parent)
                         ) {
+
                             return NodeFilter.FILTER_REJECT;
+
                         }
 
                         const text =
@@ -809,14 +1219,18 @@
                             );
 
                         if (
-                            !BRL_REGEX.test(text)
+                            !BRL_REGEX.test(text) &&
+                            !USD_REGEX.test(text)
                         ) {
+
                             return NodeFilter.FILTER_REJECT;
+
                         }
 
                         return NodeFilter.FILTER_ACCEPT;
 
                     }
+
                 }
             );
 
@@ -835,7 +1249,7 @@
     }
 
     // ============================================================
-    // ENCONTRAR CANDIDATOS POR ELEMENTOS
+    // CANDIDATOS POR ELEMENTO
     // ============================================================
 
     function getElementCandidates(root) {
@@ -846,7 +1260,9 @@
             !root ||
             !root.querySelectorAll
         ) {
+
             return candidates;
+
         }
 
         const elements =
@@ -854,14 +1270,18 @@
                 'span, div, td, th, p, a, [role="gridcell"], [role="cell"]'
             );
 
-        for (const element of elements) {
+        for (
+            const element of elements
+        ) {
 
             if (
                 !element.isConnected ||
                 isOwnElement(element) ||
                 isEditableElement(element)
             ) {
+
                 continue;
+
             }
 
             const text =
@@ -870,9 +1290,12 @@
                 );
 
             if (
-                !BRL_REGEX.test(text)
+                !BRL_REGEX.test(text) &&
+                !USD_REGEX.test(text)
             ) {
+
                 continue;
+
             }
 
             let exactChild = false;
@@ -887,10 +1310,14 @@
                     );
 
                 if (
-                    BRL_REGEX.test(childText)
+                    BRL_REGEX.test(childText) ||
+                    USD_REGEX.test(childText)
                 ) {
+
                     exactChild = true;
+
                     break;
+
                 }
 
             }
@@ -908,23 +1335,32 @@
     }
 
     // ============================================================
-    // ENCONTRAR CANDIDATOS
+    // CANDIDATOS
     // ============================================================
 
     function getMoneyCandidates(root) {
 
-        const candidates = new Set();
+        const candidates =
+            new Set();
 
         const textNodes =
             getTextNodeCandidates(root);
 
-        for (const node of textNodes) {
+        for (
+            const node of textNodes
+        ) {
 
             const element =
-                getBestElementForTextNode(node);
+                getBestElementForTextNode(
+                    node
+                );
 
             if (element) {
-                candidates.add(element);
+
+                candidates.add(
+                    element
+                );
+
             }
 
         }
@@ -932,11 +1368,19 @@
         const elements =
             getElementCandidates(root);
 
-        for (const element of elements) {
-            candidates.add(element);
+        for (
+            const element of elements
+        ) {
+
+            candidates.add(
+                element
+            );
+
         }
 
-        return Array.from(candidates);
+        return Array.from(
+            candidates
+        );
 
     }
 
@@ -955,9 +1399,13 @@
                 ATTR.original
             );
 
-        if (original !== null) {
+        if (
+            original !== null
+        ) {
 
-            internallyModified.add(element);
+            internallyModified.add(
+                element
+            );
 
             try {
 
@@ -978,11 +1426,15 @@
                 ATTR.originalTitle
             );
 
-        internallyModified.add(element);
+        internallyModified.add(
+            element
+        );
 
         try {
 
-            if (hadTitle === 'true') {
+            if (
+                hadTitle === 'true'
+            ) {
 
                 element.setAttribute(
                     'title',
@@ -991,7 +1443,9 @@
 
             } else {
 
-                element.removeAttribute('title');
+                element.removeAttribute(
+                    'title'
+                );
 
             }
 
@@ -1015,6 +1469,10 @@
 
         element.removeAttribute(
             ATTR.value
+        );
+
+        element.removeAttribute(
+            ATTR.currency
         );
 
     }
@@ -1048,14 +1506,20 @@
                 ATTR.original
             )
         ) {
+
             return false;
+
         }
 
         if (
-            internallyModified.has(element)
+            internallyModified.has(
+                element
+            )
         ) {
 
-            internallyModified.delete(element);
+            internallyModified.delete(
+                element
+            );
 
             return false;
 
@@ -1066,6 +1530,13 @@
                 element.textContent
             );
 
+        const converted =
+            normalizeText(
+                element.getAttribute(
+                    ATTR.converted
+                )
+            );
+
         const original =
             normalizeText(
                 element.getAttribute(
@@ -1074,33 +1545,46 @@
             );
 
         if (
-            BRL_REGEX.test(current)
+            current === original
         ) {
 
-            restoreElement(element);
+            return false;
+
+        }
+
+        if (
+            current === converted
+        ) {
+
+            return false;
+
+        }
+
+        if (
+            BRL_REGEX.test(current) ||
+            USD_REGEX.test(current)
+        ) {
+
+            restoreElement(
+                element
+            );
 
             return true;
 
         }
 
         if (
-            current !==
-            normalizeText(
-                element.getAttribute(
-                    ATTR.converted
-                )
+            !(
+                current.startsWith('US$') ||
+                current.startsWith('R$')
             )
         ) {
 
-            if (
-                !current.startsWith('US$')
-            ) {
+            restoreElement(
+                element
+            );
 
-                restoreElement(element);
-
-                return true;
-
-            }
+            return true;
 
         }
 
@@ -1122,7 +1606,9 @@
             isOwnElement(element) ||
             isEditableElement(element)
         ) {
+
             return false;
+
         }
 
         if (
@@ -1131,14 +1617,18 @@
             )
         ) {
 
-            refreshConvertedElement(element);
+            refreshConvertedElement(
+                element
+            );
 
             if (
                 element.hasAttribute(
                     ATTR.original
                 )
             ) {
+
                 return false;
+
             }
 
         }
@@ -1148,46 +1638,104 @@
                 element.textContent
             );
 
-        if (
-            !BRL_REGEX.test(original)
-        ) {
+        if (!original) {
             return false;
+        }
+
+        let sourceValue = null;
+
+        let sourceCurrency = null;
+
+        if (
+            direction === 'USD_TO_BRL'
+        ) {
+
+            sourceValue =
+                parseUSD(original);
+
+            sourceCurrency =
+                'USD';
+
+        } else {
+
+            sourceValue =
+                parseBRL(original);
+
+            sourceCurrency =
+                'BRL';
+
+        }
+
+        if (
+            sourceValue === null ||
+            !Number.isFinite(sourceValue)
+        ) {
+
+            return false;
+
         }
 
         if (
             !isMoneyContext(element)
         ) {
-            return false;
-        }
 
-        const brl =
-            parseBRL(original);
-
-        if (
-            brl === null ||
-            !Number.isFinite(brl)
-        ) {
             return false;
+
         }
 
         if (
             !Number.isFinite(exchangeRate) ||
             exchangeRate <= 0
         ) {
+
             return false;
+
         }
 
-        const usd =
-            brl / exchangeRate;
+        let convertedValue;
+
+        let formatted;
 
         if (
-            !Number.isFinite(usd)
+            direction === 'USD_TO_BRL'
         ) {
-            return false;
+
+            convertedValue =
+                sourceValue *
+                exchangeRate;
+
+            formatted =
+                formatBRL(
+                    convertedValue
+                );
+
+        } else {
+
+            convertedValue =
+                sourceValue /
+                exchangeRate;
+
+            formatted =
+                formatUSD(
+                    convertedValue
+                );
+
         }
 
-        const formatted =
-            formatUSD(usd);
+        if (
+            !Number.isFinite(
+                convertedValue
+            )
+        ) {
+
+            return false;
+
+        }
+
+        const hadTitle =
+            element.hasAttribute(
+                'title'
+            );
 
         element.setAttribute(
             ATTR.original,
@@ -1196,21 +1744,27 @@
 
         element.setAttribute(
             ATTR.value,
-            String(brl)
+            String(sourceValue)
         );
 
-        const hadTitle =
-            element.hasAttribute('title');
+        element.setAttribute(
+            ATTR.currency,
+            sourceCurrency
+        );
 
         element.setAttribute(
             ATTR.hadTitle,
-            hadTitle ? 'true' : 'false'
+            hadTitle
+                ? 'true'
+                : 'false'
         );
 
         element.setAttribute(
             ATTR.originalTitle,
             hadTitle
-                ? element.getAttribute('title') || ''
+                ? element.getAttribute(
+                    'title'
+                ) || ''
                 : ''
         );
 
@@ -1219,7 +1773,9 @@
             formatted
         );
 
-        internallyModified.add(element);
+        internallyModified.add(
+            element
+        );
 
         try {
 
@@ -1231,7 +1787,9 @@
 
         } catch (error) {
 
-            restoreElement(element);
+            restoreElement(
+                element
+            );
 
             return false;
 
@@ -1251,19 +1809,25 @@
             !enabled ||
             !root
         ) {
+
             return 0;
+
         }
 
         if (
             root.nodeType === 1 &&
             isOwnElement(root)
         ) {
+
             return 0;
+
         }
 
         let processed = 0;
 
-        if (root.querySelectorAll) {
+        if (
+            root.querySelectorAll
+        ) {
 
             const converted =
                 root.querySelectorAll(
@@ -1279,12 +1843,16 @@
         const candidates =
             getMoneyCandidates(root);
 
-        for (const element of candidates) {
+        for (
+            const element of candidates
+        ) {
 
             if (
                 convertElement(element)
             ) {
+
                 processed++;
+
             }
 
         }
@@ -1300,11 +1868,18 @@
                     root.textContent
                 );
 
+            const validText =
+                direction === 'USD_TO_BRL'
+                    ? USD_REGEX.test(text)
+                    : BRL_REGEX.test(text);
+
             if (
-                BRL_REGEX.test(text) &&
+                validText &&
                 convertElement(root)
             ) {
+
                 processed++;
+
             }
 
         }
@@ -1324,21 +1899,12 @@
             processing ||
             !document.body
         ) {
+
             return;
+
         }
 
-        /*
-         * Proteção adicional caso uma SPA navegue para
-         * /ads/library sem recarregar a página.
-         */
-
-        const currentPath =
-            String(location.pathname || '').toLowerCase();
-
-        if (
-            currentPath === '/ads/library' ||
-            currentPath.startsWith('/ads/library/')
-        ) {
+        if (isAdsLibrary()) {
 
             enabled = false;
 
@@ -1362,7 +1928,7 @@
         } catch (error) {
 
             console.warn(
-                'Meta Currency V8.2 scan:',
+                'Meta Currency V8.4 scan:',
                 error
             );
 
@@ -1372,7 +1938,9 @@
 
         }
 
-        if (processed > 0) {
+        if (
+            processed > 0
+        ) {
 
             console.log(
                 `💵 ${processed} valor(es) convertido(s)`
@@ -1393,16 +1961,22 @@
             !element ||
             !element.isConnected
         ) {
+
             return;
+
         }
 
         if (
             isOwnElement(element)
         ) {
+
             return;
+
         }
 
-        processingQueue.add(element);
+        processingQueue.add(
+            element
+        );
 
         if (queueTimer) {
             return;
@@ -1440,25 +2014,33 @@
 
         let processed = 0;
 
-        for (const element of items) {
+        for (
+            const element of items
+        ) {
 
             if (
                 !element ||
                 !element.isConnected
             ) {
+
                 continue;
+
             }
 
             try {
 
                 processed +=
-                    processRoot(element);
+                    processRoot(
+                        element
+                    );
 
             } catch (e) {}
 
         }
 
-        if (processed > 0) {
+        if (
+            processed > 0
+        ) {
 
             console.log(
                 `⚡ ${processed} novo(s) valor(es) detectado(s)`
@@ -1472,9 +2054,13 @@
     // SCAN AGENDADO
     // ============================================================
 
-    function scheduleFullScan(delay = 100) {
+    function scheduleFullScan(
+        delay = 100
+    ) {
 
-        clearTimeout(scanTimer);
+        clearTimeout(
+            scanTimer
+        );
 
         scanTimer =
             setTimeout(
@@ -1496,9 +2082,12 @@
                     return;
                 }
 
-                let largeUpdate = false;
+                let largeUpdate =
+                    false;
 
-                for (const mutation of mutations) {
+                for (
+                    const mutation of mutations
+                ) {
 
                     if (
                         mutation.type ===
@@ -1511,10 +2100,14 @@
 
                         if (
                             parent &&
-                            !isOwnElement(parent)
+                            !isOwnElement(
+                                parent
+                            )
                         ) {
 
-                            queueElement(parent);
+                            queueElement(
+                                parent
+                            );
 
                         }
 
@@ -1532,11 +2125,17 @@
 
                         if (
                             target &&
-                            !isOwnElement(target) &&
-                            !internallyModified.has(target)
+                            !isOwnElement(
+                                target
+                            ) &&
+                            !internallyModified.has(
+                                target
+                            )
                         ) {
 
-                            queueElement(target);
+                            queueElement(
+                                target
+                            );
 
                         }
 
@@ -1567,16 +2166,22 @@
                             if (
                                 node.nodeType !== 1
                             ) {
+
                                 continue;
+
                             }
 
                             if (
                                 isOwnElement(node)
                             ) {
+
                                 continue;
+
                             }
 
-                            queueElement(node);
+                            queueElement(
+                                node
+                            );
 
                             const text =
                                 normalizeText(
@@ -1584,10 +2189,12 @@
                                 );
 
                             if (
-                                text.includes('R$')
+                                text.includes('R$') ||
+                                text.includes('US$')
                             ) {
 
-                                largeUpdate = true;
+                                largeUpdate =
+                                    true;
 
                             }
 
@@ -1597,9 +2204,13 @@
 
                 }
 
-                if (largeUpdate) {
+                if (
+                    largeUpdate
+                ) {
 
-                    scheduleFullScan(120);
+                    scheduleFullScan(
+                        120
+                    );
 
                 }
 
@@ -1616,7 +2227,9 @@
             return;
         }
 
-        clearTimeout(scrollTimer);
+        clearTimeout(
+            scrollTimer
+        );
 
         scrollTimer =
             setTimeout(
@@ -1666,23 +2279,15 @@
         if (
             current === lastUrl
         ) {
+
             return;
+
         }
 
         lastUrl =
             current;
 
-        const currentPath =
-            String(location.pathname || '').toLowerCase();
-
-        /*
-         * Se a SPA entrar na Ads Library, desativamos.
-         */
-
-        if (
-            currentPath === '/ads/library' ||
-            currentPath.startsWith('/ads/library/')
-        ) {
+        if (isAdsLibrary()) {
 
             console.log(
                 '🛑 Ads Library detectada — Meta Currency desativado'
@@ -1695,14 +2300,18 @@
             restoreOriginalValues();
 
             const panel =
-                document.getElementById(PANEL_ID);
+                document.getElementById(
+                    PANEL_ID
+                );
 
             if (panel) {
                 panel.remove();
             }
 
             const mini =
-                document.getElementById(MINI_ID);
+                document.getElementById(
+                    MINI_ID
+                );
 
             if (mini) {
                 mini.remove();
@@ -1718,7 +2327,9 @@
 
         if (enabled) {
 
-            clearTimeout(routeTimer);
+            clearTimeout(
+                routeTimer
+            );
 
             routeTimer =
                 setTimeout(
@@ -1796,7 +2407,9 @@
                 return;
             }
 
-            clearTimeout(resizeTimer);
+            clearTimeout(
+                resizeTimer
+            );
 
             resizeTimer =
                 setTimeout(
@@ -1816,7 +2429,8 @@
         function () {
 
             if (
-                document.visibilityState === 'visible' &&
+                document.visibilityState ===
+                'visible' &&
                 enabled
             ) {
 
@@ -1831,7 +2445,7 @@
     );
 
     // ============================================================
-    // PAINEL
+    // PAINEL — POSIÇÃO
     // ============================================================
 
     function applyPosition(element) {
@@ -1873,6 +2487,7 @@
             );
 
         position = {
+
             top:
                 Number.isFinite(top)
                     ? top
@@ -1882,6 +2497,7 @@
                 Number.isFinite(right)
                     ? right
                     : 20
+
         };
 
         localStorage.setItem(
@@ -1891,29 +2507,87 @@
 
     }
 
+    // ============================================================
+    // TEXTO DA DIREÇÃO
+    // ============================================================
+
+    function getDirectionLabel() {
+
+        if (
+            direction === 'USD_TO_BRL'
+        ) {
+
+            return 'USD → BRL';
+
+        }
+
+        return 'BRL → USD';
+
+    }
+
+    function updateDirectionText() {
+
+        const mode =
+            document.getElementById(
+                'meta-currency-v84-mode'
+            );
+
+        if (mode) {
+
+            mode.textContent =
+                direction === 'USD_TO_BRL'
+                    ? 'Transformar USD em BRL'
+                    : 'Transformar BRL em USD';
+
+        }
+
+    }
+
+    // ============================================================
+    // ATUALIZAR PAINEL
+    // ============================================================
+
     function updatePanel() {
 
         const status =
             document.getElementById(
-                'meta-currency-v82-status-text'
+                'meta-currency-v84-status-text'
             );
 
         const dot =
             document.getElementById(
-                'meta-currency-v82-dot'
+                'meta-currency-v84-dot'
             );
 
         const button =
             document.getElementById(
-                'meta-currency-v82-toggle'
+                'meta-currency-v84-toggle'
             );
+
+        const select =
+            document.getElementById(
+                'meta-currency-v84-direction'
+            );
+
+        if (
+            select
+        ) {
+
+            select.value =
+                direction;
+
+        }
+
+        updateDirectionText();
 
         if (
             !status ||
             !dot ||
             !button
         ) {
+
             return;
+
         }
 
         if (enabled) {
@@ -1921,7 +2595,9 @@
             status.textContent =
                 'ATIVADO';
 
-            dot.classList.remove('off');
+            dot.classList.remove(
+                'off'
+            );
 
             button.textContent =
                 '✓ ATIVADO';
@@ -1934,7 +2610,9 @@
             status.textContent =
                 'DESATIVADO';
 
-            dot.classList.add('off');
+            dot.classList.add(
+                'off'
+            );
 
             button.textContent =
                 '○ DESATIVADO';
@@ -1945,6 +2623,10 @@
         }
 
     }
+
+    // ============================================================
+    // TOGGLE
+    // ============================================================
 
     function toggle() {
 
@@ -1965,11 +2647,67 @@
 
     }
 
+    // ============================================================
+    // ALTERAR DIREÇÃO
+    // ============================================================
+
+    function applyDirection() {
+
+        const select =
+            document.getElementById(
+                'meta-currency-v84-direction'
+            );
+
+        if (!select) {
+            return;
+        }
+
+        const newDirection =
+            select.value;
+
+        if (
+            newDirection !== 'USD_TO_BRL' &&
+            newDirection !== 'BRL_TO_USD'
+        ) {
+
+            return;
+
+        }
+
+        direction =
+            newDirection;
+
+        localStorage.setItem(
+            STORAGE.direction,
+            direction
+        );
+
+        /*
+         * Primeiro restauramos os valores originais.
+         * Depois o scanner aplica a nova direção.
+         */
+
+        restoreOriginalValues();
+
+        updateDirectionText();
+
+        if (enabled) {
+
+            scheduleFullScan(0);
+
+        }
+
+    }
+
+    // ============================================================
+    // APLICAR COTAÇÃO
+    // ============================================================
+
     function applyRate() {
 
         const input =
             document.getElementById(
-                'meta-currency-v82-rate'
+                'meta-currency-v84-rate'
             );
 
         if (!input) {
@@ -1977,13 +2715,19 @@
         }
 
         const value =
-            parseFloat(input.value);
+            parseFloat(
+                String(
+                    input.value
+                ).replace(',', '.')
+            );
 
         if (
             !Number.isFinite(value) ||
             value <= 0
         ) {
+
             return;
+
         }
 
         exchangeRate =
@@ -1991,13 +2735,17 @@
 
         localStorage.setItem(
             STORAGE.rate,
-            String(exchangeRate)
+            String(
+                exchangeRate
+            )
         );
 
         restoreOriginalValues();
 
         if (enabled) {
+
             scheduleFullScan(0);
+
         }
 
     }
@@ -2010,7 +2758,7 @@
 
         const header =
             document.getElementById(
-                'meta-currency-v82-header'
+                'meta-currency-v84-header'
             );
 
         if (!header) {
@@ -2018,9 +2766,13 @@
         }
 
         let dragging = false;
+
         let startX = 0;
+
         let startY = 0;
+
         let startTop = 0;
+
         let startRight = 0;
 
         header.addEventListener(
@@ -2028,9 +2780,13 @@
             function (event) {
 
                 if (
-                    event.target.closest('button')
+                    event.target.closest(
+                        'button'
+                    )
                 ) {
+
                     return;
+
                 }
 
                 dragging = true;
@@ -2149,13 +2905,19 @@
     function createMiniButton() {
 
         if (
-            document.getElementById(MINI_ID)
+            document.getElementById(
+                MINI_ID
+            )
         ) {
+
             return;
+
         }
 
         const mini =
-            document.createElement('button');
+            document.createElement(
+                'button'
+            );
 
         mini.id =
             MINI_ID;
@@ -2178,16 +2940,21 @@
         mini.dataset.moved =
             'false';
 
-        document.body.appendChild(mini);
+        document.body.appendChild(
+            mini
+        );
 
-        makeMiniDraggable(mini);
+        makeMiniDraggable(
+            mini
+        );
 
         mini.addEventListener(
             'click',
             function () {
 
                 if (
-                    mini.dataset.moved === 'true'
+                    mini.dataset.moved ===
+                    'true'
                 ) {
 
                     mini.dataset.moved =
@@ -2220,7 +2987,9 @@
 
         if (mini) {
 
-            savePosition(mini);
+            savePosition(
+                mini
+            );
 
             mini.remove();
 
@@ -2236,7 +3005,9 @@
             panel.style.display =
                 'block';
 
-            applyPosition(panel);
+            applyPosition(
+                panel
+            );
 
         }
 
@@ -2258,7 +3029,9 @@
 
         if (panel) {
 
-            savePosition(panel);
+            savePosition(
+                panel
+            );
 
             panel.style.display =
                 'none';
@@ -2272,11 +3045,15 @@
     function makeMiniDraggable(mini) {
 
         let dragging = false;
+
         let moved = false;
 
         let startX = 0;
+
         let startY = 0;
+
         let startTop = 0;
+
         let startRight = 0;
 
         mini.addEventListener(
@@ -2284,6 +3061,7 @@
             function (event) {
 
                 dragging = true;
+
                 moved = false;
 
                 mini.dataset.moved =
@@ -2398,7 +3176,11 @@
                 dragging = false;
 
                 if (moved) {
-                    savePosition(mini);
+
+                    savePosition(
+                        mini
+                    );
+
                 }
 
             }
@@ -2413,24 +3195,30 @@
     function createPanel() {
 
         if (
-            document.getElementById(PANEL_ID)
+            document.getElementById(
+                PANEL_ID
+            )
         ) {
+
             return;
+
         }
 
         const panel =
-            document.createElement('div');
+            document.createElement(
+                'div'
+            );
 
         panel.id =
             PANEL_ID;
 
         panel.innerHTML = `
 
-            <div id="meta-currency-v82-header">
+            <div id="meta-currency-v84-header">
 
-                <div id="meta-currency-v82-title">
+                <div id="meta-currency-v84-title">
 
-                    <div id="meta-currency-v82-icon">
+                    <div id="meta-currency-v84-icon">
                         $
                     </div>
 
@@ -2440,12 +3228,12 @@
 
                 </div>
 
-                <div id="meta-currency-v82-actions">
+                <div id="meta-currency-v84-actions">
 
                     <button
                         type="button"
-                        class="meta-currency-v82-action"
-                        id="meta-currency-v82-minimize"
+                        class="meta-currency-v84-action"
+                        id="meta-currency-v84-minimize"
                         title="Minimizar"
                     >
                         −
@@ -2455,23 +3243,27 @@
 
             </div>
 
-            <div id="meta-currency-v82-body">
+            <div id="meta-currency-v84-body">
 
-                <div id="meta-currency-v82-main">
+                <div id="meta-currency-v84-main">
 
-                    <div id="meta-currency-v82-mode">
-                        Transformar para USD
+                    <div id="meta-currency-v84-mode">
+                        ${
+                            direction === 'USD_TO_BRL'
+                                ? 'Transformar USD em BRL'
+                                : 'Transformar BRL em USD'
+                        }
                     </div>
 
-                    <div id="meta-currency-v82-status">
+                    <div id="meta-currency-v84-status">
 
                         <span
-                            id="meta-currency-v82-dot"
+                            id="meta-currency-v84-dot"
                             class="off"
                         ></span>
 
                         <span
-                            id="meta-currency-v82-status-text"
+                            id="meta-currency-v84-status-text"
                         >
                             DESATIVADO
                         </span>
@@ -2481,16 +3273,51 @@
                 </div>
 
                 <label
-                    id="meta-currency-v82-rate-label"
-                    for="meta-currency-v82-rate"
+                    id="meta-currency-v84-direction-label"
+                    for="meta-currency-v84-direction"
+                >
+                    Direção da conversão
+                </label>
+
+                <select
+                    id="meta-currency-v84-direction"
+                >
+
+                    <option
+                        value="USD_TO_BRL"
+                        ${
+                            direction === 'USD_TO_BRL'
+                                ? 'selected'
+                                : ''
+                        }
+                    >
+                        USD → BRL
+                    </option>
+
+                    <option
+                        value="BRL_TO_USD"
+                        ${
+                            direction === 'BRL_TO_USD'
+                                ? 'selected'
+                                : ''
+                        }
+                    >
+                        BRL → USD
+                    </option>
+
+                </select>
+
+                <label
+                    id="meta-currency-v84-rate-label"
+                    for="meta-currency-v84-rate"
                 >
                     Cotação do dólar
                 </label>
 
-                <div id="meta-currency-v82-rate-row">
+                <div id="meta-currency-v84-rate-row">
 
                     <input
-                        id="meta-currency-v82-rate"
+                        id="meta-currency-v84-rate"
                         type="number"
                         min="0.01"
                         step="0.01"
@@ -2499,7 +3326,7 @@
 
                     <button
                         type="button"
-                        id="meta-currency-v82-apply"
+                        id="meta-currency-v84-apply"
                     >
                         Aplicar
                     </button>
@@ -2508,25 +3335,29 @@
 
                 <button
                     type="button"
-                    id="meta-currency-v82-toggle"
+                    id="meta-currency-v84-toggle"
                     class="inactive"
                 >
                     ○ DESATIVADO
                 </button>
 
-                <label id="meta-currency-v82-auto">
+                <label id="meta-currency-v84-auto">
 
                     <input
-                        id="meta-currency-v82-autostart"
+                        id="meta-currency-v84-autostart"
                         type="checkbox"
-                        ${autoStart ? 'checked' : ''}
+                        ${
+                            autoStart
+                                ? 'checked'
+                                : ''
+                        }
                     >
 
-                    <span id="meta-currency-v82-auto-text">
+                    <span id="meta-currency-v84-auto-text">
 
                         Iniciar automaticamente
 
-                        <span id="meta-currency-v82-auto-description">
+                        <span id="meta-currency-v84-auto-description">
 
                             Ativa a conversão ao abrir o Ads Manager.
 
@@ -2536,7 +3367,7 @@
 
                 </label>
 
-                <div id="meta-currency-v82-info">
+                <div id="meta-currency-v84-info">
 
                     Arraste o cabeçalho para mover o painel.
                     <br>
@@ -2548,13 +3379,17 @@
 
         `;
 
-        document.body.appendChild(panel);
+        document.body.appendChild(
+            panel
+        );
 
-        applyPosition(panel);
+        applyPosition(
+            panel
+        );
 
         document
             .getElementById(
-                'meta-currency-v82-minimize'
+                'meta-currency-v84-minimize'
             )
             ?.addEventListener(
                 'click',
@@ -2563,7 +3398,7 @@
 
         document
             .getElementById(
-                'meta-currency-v82-toggle'
+                'meta-currency-v84-toggle'
             )
             ?.addEventListener(
                 'click',
@@ -2572,7 +3407,7 @@
 
         document
             .getElementById(
-                'meta-currency-v82-apply'
+                'meta-currency-v84-apply'
             )
             ?.addEventListener(
                 'click',
@@ -2581,7 +3416,7 @@
 
         document
             .getElementById(
-                'meta-currency-v82-rate'
+                'meta-currency-v84-rate'
             )
             ?.addEventListener(
                 'keydown',
@@ -2590,7 +3425,9 @@
                     if (
                         event.key === 'Enter'
                     ) {
+
                         applyRate();
+
                     }
 
                 }
@@ -2598,7 +3435,16 @@
 
         document
             .getElementById(
-                'meta-currency-v82-autostart'
+                'meta-currency-v84-direction'
+            )
+            ?.addEventListener(
+                'change',
+                applyDirection
+            );
+
+        document
+            .getElementById(
+                'meta-currency-v84-autostart'
             )
             ?.addEventListener(
                 'change',
@@ -2609,13 +3455,17 @@
 
                     localStorage.setItem(
                         STORAGE.autoStart,
-                        String(autoStart)
+                        String(
+                            autoStart
+                        )
                     );
 
                 }
             );
 
-        makeDraggable(panel);
+        makeDraggable(
+            panel
+        );
 
         updatePanel();
 
@@ -2627,17 +3477,7 @@
 
     function init() {
 
-        /*
-         * Proteção final antes de iniciar.
-         */
-
-        const currentPath =
-            String(location.pathname || '').toLowerCase();
-
-        if (
-            currentPath === '/ads/library' ||
-            currentPath.startsWith('/ads/library/')
-        ) {
+        if (isAdsLibrary()) {
             return;
         }
 
@@ -2731,9 +3571,10 @@
             );
 
         console.log(
-            `✅ Meta Ads Currency Converter V8.2 pronto | ` +
+            `✅ Meta Ads Currency Converter V8.4 pronto | ` +
             `Status: ${enabled ? 'ATIVADO' : 'DESATIVADO'} | ` +
             `AutoStart: ${autoStart ? 'SIM' : 'NÃO'} | ` +
+            `Direção: ${getDirectionLabel()} | ` +
             `Câmbio: R$ ${exchangeRate.toFixed(2)}`
         );
 
